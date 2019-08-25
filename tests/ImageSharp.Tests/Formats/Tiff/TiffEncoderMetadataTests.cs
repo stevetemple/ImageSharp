@@ -1,20 +1,15 @@
 // Copyright (c) Six Labors and contributors.
 // Licensed under the Apache License, Version 2.0.
 
+using System.Collections.Generic;
+using SixLabors.ImageSharp.Formats.Tiff;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Primitives;
+using Xunit;
 
 namespace SixLabors.ImageSharp.Tests
 {
-    using Xunit;
-
-    using ImageSharp.Formats;
-    using ImageSharp.Formats.Tiff;
-    using System.Collections.Generic;
-
-    using SixLabors.ImageSharp.MetaData;
-    using SixLabors.ImageSharp.MetaData.Profiles.Exif;
-    using SixLabors.ImageSharp.Primitives;
-
+    [Trait("Category", "Tiff")]
     public class TiffEncoderMetadataTests
     {
         public static object[][] BaselineMetadataValues = new[] { new object[] { TiffTags.Artist, TiffMetadataNames.Artist, "My Artist Name" },
@@ -30,8 +25,8 @@ namespace SixLabors.ImageSharp.Tests
         public void AddMetadata_SetsImageResolution()
         {
             Image<Rgba32> image = new Image<Rgba32>(100, 100);
-            image.MetaData.HorizontalResolution = 40.0;
-            image.MetaData.VerticalResolution = 50.5;
+            image.Metadata.HorizontalResolution = 40.0;
+            image.Metadata.VerticalResolution = 50.5;
             TiffEncoderCore encoder = new TiffEncoderCore(null);
 
             List<TiffIfdEntry> ifdEntries = new List<TiffIfdEntry>();
@@ -47,7 +42,9 @@ namespace SixLabors.ImageSharp.Tests
         public void AddMetadata_SetsAsciiMetadata(ushort tag, string metadataName, string metadataValue)
         {
             Image<Rgba32> image = new Image<Rgba32>(100, 100);
-            image.MetaData.Properties.Add(new ImageProperty(metadataName, metadataValue));
+
+            TiffMetaData tiffMetadata = image.Metadata.GetFormatMetadata(TiffFormat.Instance);
+            tiffMetadata.TextTags.Add(new TiffMetadataTag(metadataName, metadataValue));
             TiffEncoderCore encoder = new TiffEncoderCore(null);
 
             List<TiffIfdEntry> ifdEntries = new List<TiffIfdEntry>();

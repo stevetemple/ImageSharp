@@ -1,4 +1,4 @@
-// Copyright (c) Six Labors and contributors.
+﻿// Copyright (c) Six Labors and contributors.
 // Licensed under the Apache License, Version 2.0.
 
 using System;
@@ -8,6 +8,7 @@ using SixLabors.ImageSharp.Formats.Bmp;
 using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Formats.Tiff;
 using SixLabors.ImageSharp.IO;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.Memory;
@@ -103,6 +104,15 @@ namespace SixLabors.ImageSharp
         internal IFileSystem FileSystem { get; set; } = new LocalFileSystem();
 
         /// <summary>
+        /// Gets or sets the working buffer size hint for image processors.
+        /// The default value is 1MB.
+        /// </summary>
+        /// <remarks>
+        /// Currently only used by Resize.
+        /// </remarks>
+        internal int WorkingBufferSizeHintInBytes { get; set; } = 1 * 1024 * 1024;
+
+        /// <summary>
         /// Gets or sets the image operations provider factory.
         /// </summary>
         internal IImageProcessingContextFactory ImageOperationsProvider { get; set; } = new DefaultImageOperationsProviderFactory();
@@ -118,9 +128,9 @@ namespace SixLabors.ImageSharp
         }
 
         /// <summary>
-        /// Creates a shallow copy of the <see cref="Configuration"/>
+        /// Creates a shallow copy of the <see cref="Configuration"/>.
         /// </summary>
-        /// <returns>A new configuration instance</returns>
+        /// <returns>A new configuration instance.</returns>
         public Configuration Clone()
         {
             return new Configuration
@@ -130,25 +140,28 @@ namespace SixLabors.ImageSharp
                 MemoryAllocator = this.MemoryAllocator,
                 ImageOperationsProvider = this.ImageOperationsProvider,
                 ReadOrigin = this.ReadOrigin,
-                FileSystem = this.FileSystem
+                FileSystem = this.FileSystem,
+                WorkingBufferSizeHintInBytes = this.WorkingBufferSizeHintInBytes,
             };
         }
 
         /// <summary>
         /// Creates the default instance with the following <see cref="IConfigurationModule"/>s preregistered:
-        /// <para><see cref="PngConfigurationModule"/></para>
-        /// <para><see cref="JpegConfigurationModule"/></para>
-        /// <para><see cref="GifConfigurationModule"/></para>
-        /// <para><see cref="BmpConfigurationModule"/></para>
+        /// <see cref="PngConfigurationModule"/>
+        /// <see cref="JpegConfigurationModule"/>
+        /// <see cref="GifConfigurationModule"/>
+        /// <see cref="BmpConfigurationModule"/>.
+        /// <para><see cref="TiffConfigurationModule"/></para>
         /// </summary>
-        /// <returns>The default configuration of <see cref="Configuration"/></returns>
+        /// <returns>The default configuration of <see cref="Configuration"/>.</returns>
         internal static Configuration CreateDefaultInstance()
         {
             return new Configuration(
                 new PngConfigurationModule(),
                 new JpegConfigurationModule(),
                 new GifConfigurationModule(),
-                new BmpConfigurationModule());
+                new BmpConfigurationModule(),
+                new TiffConfigurationModule());
         }
     }
 }

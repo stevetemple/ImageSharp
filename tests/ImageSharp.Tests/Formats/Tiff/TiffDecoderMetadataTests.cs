@@ -1,17 +1,15 @@
 // Copyright (c) Six Labors and contributors.
 // Licensed under the Apache License, Version 2.0.
 
+using System.IO;
+using System.Linq;
+using SixLabors.ImageSharp.Formats.Tiff;
 using SixLabors.ImageSharp.PixelFormats;
+using Xunit;
 
 namespace SixLabors.ImageSharp.Tests
 {
-    using System.IO;
-    using System.Linq;
-    using Xunit;
-
-    using ImageSharp.Formats;
-    using ImageSharp.Formats.Tiff;
-
+    [Trait("Category", "Tiff")]
     public class TiffDecoderMetadataTests
     {
         public static object[][] BaselineMetadataValues = new[] { new object[] { false, TiffTags.Artist, TiffMetadataNames.Artist, "My Artist Name" },
@@ -77,8 +75,8 @@ namespace SixLabors.ImageSharp.Tests
 
             decoder.ReadMetadata<Rgba32>(ifd, image);
 
-            Assert.Equal(expectedHorizonalResolution, image.MetaData.HorizontalResolution, 10);
-            Assert.Equal(expectedVerticalResolution, image.MetaData.VerticalResolution, 10);
+            Assert.Equal(expectedHorizonalResolution, image.Metadata.HorizontalResolution, 10);
+            Assert.Equal(expectedVerticalResolution, image.Metadata.VerticalResolution, 10);
         }
 
         [Theory]
@@ -102,7 +100,9 @@ namespace SixLabors.ImageSharp.Tests
             Image<Rgba32> image = new Image<Rgba32>(null, 20, 20);
 
             decoder.ReadMetadata<Rgba32>(ifd, image);
-            var metadata = image.MetaData.Properties.FirstOrDefault(m => m.Name == metadataName).Value;
+
+            TiffMetaData tiffMetadata = image.Metadata.GetFormatMetadata(TiffFormat.Instance);
+            var metadata = tiffMetadata.TextTags.FirstOrDefault(m => m.Name == metadataName).Value;
 
             Assert.Equal(metadataValue, metadata);
         }
@@ -129,7 +129,9 @@ namespace SixLabors.ImageSharp.Tests
             Image<Rgba32> image = new Image<Rgba32>(null, 20, 20);
 
             decoder.ReadMetadata<Rgba32>(ifd, image);
-            var metadata = image.MetaData.Properties.FirstOrDefault(m => m.Name == metadataName).Value;
+
+            TiffMetaData tiffMetadata = image.Metadata.GetFormatMetadata(TiffFormat.Instance);
+            var metadata = tiffMetadata.TextTags.FirstOrDefault(m => m.Name == metadataName).Value;
 
             Assert.Null(metadata);
         }
