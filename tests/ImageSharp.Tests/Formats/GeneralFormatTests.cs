@@ -5,7 +5,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-
+using System.Runtime.InteropServices;
+using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Memory;
@@ -19,6 +20,38 @@ namespace SixLabors.ImageSharp.Tests
 {
     public class GeneralFormatTests : FileTestBase
     {
+        [Fact]
+        public void PixelMapper()
+        {
+            var image = new Image<Rgba32>(1024, 1024);
+            ReadOnlySpan<Color> colorPaleteSpan = Color.WebSafePalette.Span;
+            var palette = new Rgba32[colorPaleteSpan.Length];
+            Color.ToPixel(image.GetConfiguration(), Color.WebSafePalette.Span, palette.AsSpan());
+            var map = new PaletteMap<Rgba32>(palette);
+
+            var random = new Random();
+            for (int y = 0; y < image.Height; y++)
+            {
+                Span<Rgba32> row = image.GetPixelRowSpan(y);
+                Span<byte> rowBytes = MemoryMarshal.AsBytes(row);
+
+                for (int i = 0; i < rowBytes.Length; i++)
+                {
+                    rowBytes[i] = (byte)random.Next();
+                }
+            }
+
+            byte index;
+            for (int y = 0; y < image.Height; y++)
+            {
+                Span<Rgba32> row = image.GetPixelRowSpan(y);
+                for (int x = 0; x < row.Length; x++)
+                {
+                   index = map.GetMatch(row[x], out Rgba32 match);
+                }
+            }
+        }
+
         [Theory]
         [WithFileCollection(nameof(DefaultFiles), DefaultPixelType)]
         public void ResolutionShouldChange<TPixel>(TestImageProvider<TPixel> provider)
