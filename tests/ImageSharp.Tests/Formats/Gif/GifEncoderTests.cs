@@ -28,7 +28,7 @@ namespace SixLabors.ImageSharp.Tests.Formats.Gif
 
         [Theory]
         [WithTestPatternImages(100, 100, TestPixelTypes, false)]
-        [WithTestPatternImages(100, 100, TestPixelTypes, false)]
+        [WithTestPatternImages(100, 100, TestPixelTypes, false)] // This looks like a dupe to me?
         public void EncodeGeneratedPatterns<TPixel>(TestImageProvider<TPixel> provider, bool limitAllocationBuffer)
             where TPixel : unmanaged, IPixel<TPixel>
         {

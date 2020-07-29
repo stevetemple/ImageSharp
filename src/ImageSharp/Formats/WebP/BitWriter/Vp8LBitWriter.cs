@@ -111,8 +111,15 @@ namespace SixLabors.ImageSharp.Formats.WebP.BitWriter
             return new Vp8LBitWriter(clonedBuffer, this.bits, this.used, this.cur);
         }
 
+        public void Reset(Vp8LBitWriter to)
+        {
+            this.bits = to.bits;
+            this.used = to.used;
+            this.cur = to.cur;
+        }
+
         /// <summary>
-        /// Writes the encoded bytes of the image to the stream. Call BitWriterFinish() before this.
+        /// Writes the encoded bytes of the image to the stream. Call Finish() before this.
         /// </summary>
         /// <param name="stream">The stream to write to.</param>
         public void WriteToStream(Stream stream)
@@ -123,9 +130,9 @@ namespace SixLabors.ImageSharp.Formats.WebP.BitWriter
         /// <summary>
         /// Flush leftover bits.
         /// </summary>
-        public void BitWriterFinish()
+        public void Finish()
         {
-            this.BitWriterResize((this.used + 7) >> 3);
+            this.Resize((this.used + 7) >> 3);
             while (this.used > 0)
             {
                 this.buffer[this.cur++] = (byte)this.bits;
@@ -145,7 +152,7 @@ namespace SixLabors.ImageSharp.Formats.WebP.BitWriter
             if (this.cur + WriterBytes > this.end)
             {
                 var extraSize = (this.end - this.cur) + MinExtraSize;
-                this.BitWriterResize(extraSize);
+                this.Resize(extraSize);
             }
 
             BinaryPrimitives.WriteUInt64LittleEndian(this.buffer.AsSpan(this.cur), this.bits);
@@ -158,7 +165,7 @@ namespace SixLabors.ImageSharp.Formats.WebP.BitWriter
         /// Resizes the buffer to write to.
         /// </summary>
         /// <param name="extraSize">The extra size in bytes needed.</param>
-        private void BitWriterResize(int extraSize)
+        private void Resize(int extraSize)
         {
             int maxBytes = this.end + this.buffer.Length;
             int sizeRequired = this.cur + extraSize;

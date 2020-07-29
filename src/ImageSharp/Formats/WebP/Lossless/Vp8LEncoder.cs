@@ -172,7 +172,7 @@ namespace SixLabors.ImageSharp.Formats.WebP.Lossless
             this.EncodeStream(image);
 
             // Write bytes from the bitwriter buffer to the stream.
-            this.bitWriter.BitWriterFinish();
+            this.bitWriter.Finish();
             var numBytes = this.bitWriter.NumBytes();
             var vp8LSize = 1 + numBytes; // One byte extra for the VP8L signature.
             var pad = vp8LSize & 1;
@@ -257,6 +257,8 @@ namespace SixLabors.ImageSharp.Formats.WebP.Lossless
 
             int quality = 75; // TODO: quality is hardcoded for now.
 
+            Vp8LBitWriter bestBitWriter = null;
+
             // TODO : Do we want to do this multi-threaded, this will probably require a second class:
             // one which co-ordinates the threading and comparison and another which does the actual encoding
             foreach (CrunchConfig crunchConfig in crunchConfigs)
@@ -320,9 +322,14 @@ namespace SixLabors.ImageSharp.Formats.WebP.Lossless
                     this.CacheBits,
                     this.HistoBits,
                     bytePosition);
+
+                if (bestBitWriter == null || this.bitWriter.NumBytes() < bestBitWriter.NumBytes())
+                {
+                    bestBitWriter = this.bitWriter.Clone();
+                }
             }
 
-            // TODO: Comparison and picking of best (smallest) encoding
+            this.bitWriter = bestBitWriter;
         }
 
         /// <summary>
@@ -423,7 +430,8 @@ namespace SixLabors.ImageSharp.Formats.WebP.Lossless
             // Calculate backward references from BGRA image.
             BackwardReferenceEncoder.HashChainFill(hashChain, bgra, quality, width, height);
 
-            Vp8LBitWriter bitWriterBest = config.SubConfigs.Count > 1 ? this.bitWriter.Clone() : this.bitWriter;
+            Vp8LBitWriter bitWriterInit = this.bitWriter.Clone();
+            Vp8LBitWriter bitWriterBest = config.SubConfigs.Count > 1 ? null : this.bitWriter;
 
             foreach (CrunchSubConfig subConfig in config.SubConfigs)
             {
@@ -433,97 +441,119 @@ namespace SixLabors.ImageSharp.Formats.WebP.Lossless
                 // two as a temporary for later usage.
                 Vp8LBackwardRefs refsTmp = refsArray[refsBest.Equals(refsArray[0]) ? 1 : 0];
 
-                // TODO : Loop based on cache/no cache
+                // TODO int cacheBitsBest = 0;
 
-                // TODO: this.bitWriter.Reset();
-                var tmpHisto = new Vp8LHistogram(cacheBits);
-                var histogramImage = new List<Vp8LHistogram>(histogramImageXySize);
-                for (int i = 0; i < histogramImageXySize; i++)
+                for (int cache = 0; cache < (subConfig.DoNotCache ? 2 : 1); ++cache)
                 {
-                    histogramImage.Add(new Vp8LHistogram(cacheBits));
-                }
+                    // TODO: figure this out
+                    /*// Speed-up: no need to study the no-cache case if it was already studied
+                    // in cache == 0.
+                    if (cache == 1 && cacheBitsBest == 0)
+                    {
+                        break;
+                    }*/
 
-                // Build histogram image and symbols from backward references.
-                HistogramEncoder.GetHistoImageSymbols(width, height, refsBest, quality, histogramBits, cacheBits, histogramImage, tmpHisto, histogramSymbols);
+                    this.bitWriter.Reset(bitWriterInit);
 
-                // Create Huffman bit lengths and codes for each histogram image.
-                var histogramImageSize = histogramImage.Count;
-                var bitArraySize = 5 * histogramImageSize;
-                var huffmanCodes = new HuffmanTreeCode[bitArraySize];
-                for (int i = 0; i < huffmanCodes.Length; i++)
-                {
-                    huffmanCodes[i] = new HuffmanTreeCode();
-                }
-
-                GetHuffBitLengthsAndCodes(histogramImage, huffmanCodes);
-
-                // Color Cache parameters.
-                if (cacheBits > 0)
-                {
-                    this.bitWriter.PutBits(1, 1);
-                    this.bitWriter.PutBits((uint)cacheBits, 4);
-                }
-                else
-                {
-                    this.bitWriter.PutBits(0, 1);
-                }
-
-                // Huffman image + meta huffman.
-                bool writeHistogramImage = histogramImageSize > 1;
-                this.bitWriter.PutBits((uint)(writeHistogramImage ? 1 : 0), 1);
-                if (writeHistogramImage)
-                {
-                    using IMemoryOwner<uint> histogramArgbBuffer = this.memoryAllocator.Allocate<uint>(histogramImageXySize);
-                    Span<uint> histogramArgb = histogramArgbBuffer.GetSpan();
-                    int maxIndex = 0;
+                    var tmpHisto = new Vp8LHistogram(cacheBits);
+                    var histogramImage = new List<Vp8LHistogram>(histogramImageXySize);
                     for (int i = 0; i < histogramImageXySize; i++)
                     {
-                        int symbolIndex = histogramSymbols[i] & 0xffff;
-                        histogramArgb[i] = (uint)(symbolIndex << 8);
-                        if (symbolIndex >= maxIndex)
+                        histogramImage.Add(new Vp8LHistogram(cacheBits));
+                    }
+
+                    // Build histogram image and symbols from backward references.
+                    HistogramEncoder.GetHistoImageSymbols(width,
+                        height,
+                        refsBest,
+                        quality,
+                        histogramBits,
+                        cacheBits,
+                        histogramImage,
+                        tmpHisto,
+                        histogramSymbols);
+
+                    // Create Huffman bit lengths and codes for each histogram image.
+                    var histogramImageSize = histogramImage.Count;
+                    var bitArraySize = 5 * histogramImageSize;
+                    var huffmanCodes = new HuffmanTreeCode[bitArraySize];
+                    for (int i = 0; i < huffmanCodes.Length; i++)
+                    {
+                        huffmanCodes[i] = new HuffmanTreeCode();
+                    }
+
+                    GetHuffBitLengthsAndCodes(histogramImage, huffmanCodes);
+
+                    // Color Cache parameters.
+                    if (cacheBits > 0)
+                    {
+                        this.bitWriter.PutBits(1, 1);
+                        this.bitWriter.PutBits((uint)cacheBits, 4);
+                    }
+                    else
+                    {
+                        this.bitWriter.PutBits(0, 1);
+                    }
+
+                    // Huffman image + meta huffman.
+                    bool writeHistogramImage = histogramImageSize > 1;
+                    this.bitWriter.PutBits((uint)(writeHistogramImage ? 1 : 0), 1);
+                    if (writeHistogramImage)
+                    {
+                        using IMemoryOwner<uint> histogramArgbBuffer =
+                            this.memoryAllocator.Allocate<uint>(histogramImageXySize);
+                        Span<uint> histogramArgb = histogramArgbBuffer.GetSpan();
+                        int maxIndex = 0;
+                        for (int i = 0; i < histogramImageXySize; i++)
                         {
-                            maxIndex = symbolIndex + 1;
+                            int symbolIndex = histogramSymbols[i] & 0xffff;
+                            histogramArgb[i] = (uint)(symbolIndex << 8);
+                            if (symbolIndex >= maxIndex)
+                            {
+                                maxIndex = symbolIndex + 1;
+                            }
+                        }
+
+                        this.bitWriter.PutBits((uint)(histogramBits - 2), 3);
+                        this.EncodeImageNoHuffman(histogramArgb, hashChain, refsTmp, refsArray[2],
+                            LosslessUtils.SubSampleSize(width, histogramBits),
+                            LosslessUtils.SubSampleSize(height, histogramBits), quality);
+                    }
+
+                    // Store Huffman codes.
+                    // Find maximum number of symbols for the huffman tree-set.
+                    int maxTokens = 0;
+                    for (int i = 0; i < 5 * histogramImage.Count; i++)
+                    {
+                        HuffmanTreeCode codes = huffmanCodes[i];
+                        if (maxTokens < codes.NumSymbols)
+                        {
+                            maxTokens = codes.NumSymbols;
                         }
                     }
 
-                    this.bitWriter.PutBits((uint)(histogramBits - 2), 3);
-                    this.EncodeImageNoHuffman(histogramArgb, hashChain, refsTmp, refsArray[2], LosslessUtils.SubSampleSize(width, histogramBits), LosslessUtils.SubSampleSize(height, histogramBits), quality);
-                }
-
-                // Store Huffman codes.
-                // Find maximum number of symbols for the huffman tree-set.
-                int maxTokens = 0;
-                for (int i = 0; i < 5 * histogramImage.Count; i++)
-                {
-                    HuffmanTreeCode codes = huffmanCodes[i];
-                    if (maxTokens < codes.NumSymbols)
+                    var tokens = new HuffmanTreeToken[maxTokens];
+                    for (int i = 0; i < tokens.Length; i++)
                     {
-                        maxTokens = codes.NumSymbols;
+                        tokens[i] = new HuffmanTreeToken();
                     }
-                }
 
-                var tokens = new HuffmanTreeToken[maxTokens];
-                for (int i = 0; i < tokens.Length; i++)
-                {
-                    tokens[i] = new HuffmanTreeToken();
-                }
+                    for (int i = 0; i < 5 * histogramImage.Count; i++)
+                    {
+                        HuffmanTreeCode codes = huffmanCodes[i];
+                        this.StoreHuffmanCode(huffTree, tokens, codes);
+                        ClearHuffmanTreeIfOnlyOneSymbol(codes);
+                    }
 
-                for (int i = 0; i < 5 * histogramImage.Count; i++)
-                {
-                    HuffmanTreeCode codes = huffmanCodes[i];
-                    this.StoreHuffmanCode(huffTree, tokens, codes);
-                    ClearHuffmanTreeIfOnlyOneSymbol(codes);
-                }
+                    // Store actual literals.
+                    var hdrSizeTmp = (int)(this.bitWriter.NumBytes() - initBytePosition);
+                    this.StoreImageToBitMask(width, histogramBits, refsBest, histogramSymbols, huffmanCodes);
 
-                // Store actual literals.
-                var hdrSizeTmp = (int)(this.bitWriter.NumBytes() - initBytePosition);
-                this.StoreImageToBitMask(width, histogramBits, refsBest, histogramSymbols, huffmanCodes);
-
-                // TODO: Keep track of the smallest image so far.
-                if (bitWriterBest != null && this.bitWriter.NumBytes() < bitWriterBest.NumBytes())
-                {
-                    // TODO : This was done in the reference by swapping references, this will be slower
-                    bitWriterBest = this.bitWriter.Clone();
+                    if (bitWriterBest != null && this.bitWriter.NumBytes() < bitWriterBest.NumBytes())
+                    {
+                        // TODO : This was done in the reference by swapping references, this will be slower
+                        bitWriterBest = this.bitWriter.Clone();
+                    }
                 }
             }
 
